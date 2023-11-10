@@ -481,25 +481,7 @@ export class AppComponent {
   }
 
   // Exercise 13
-  function13(projectionFunctionThatReturnsArray: any) {
-    var spanishFrenchEnglishWords = [
-      ['cero', 'rien', 'zero'],
-      ['uno', 'un', 'one'],
-      ['dos', 'deux', 'two'],
-    ];
 
-    from(spanishFrenchEnglishWords)
-      .pipe(
-        concatMap((item) => {
-          // Assuming projectionFunctionThatReturnsObservable is a function returning an observable
-          return projectionFunctionThatReturnsArray(item);
-        })
-      )
-      .subscribe((result) => {
-        // This will log the flattened and concatenated result of each projected observable
-        console.log(result);
-      });
-  }
   // Exercise 14
   function14() {
     var movieLists = [
