@@ -8,6 +8,7 @@ import {
   reduce,
   fromEvent,
   Subject,
+  forkJoin,
 } from 'rxjs';
 import {
   concatMap,
@@ -17,7 +18,10 @@ import {
   tap,
   takeUntil,
   take,
+  switchMap,
+  catchError,
 } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
 
 interface PriceRecord {
   name: string;
@@ -32,8 +36,8 @@ interface PriceRecord {
 export class AppComponent {
   title = 'os-rxjs-practice';
   pricesNASDAQ: PriceRecord[] = [];
-  private unsubscribe$ = new Subject<void>();
-  constructor(private buttonRef: ElementRef) {}
+  // private unsubscribe$ = new Subject<void>();
+  constructor(private buttonRef: ElementRef, private http: HttpClient) {}
   // Exercise 1
 
   function1() {
@@ -1296,14 +1300,12 @@ export class AppComponent {
   function28() {
     const button = this.buttonRef.nativeElement;
 
-    const click$ = fromEvent(button, 'click').pipe(
-      takeUntil(this.unsubscribe$)
-    );
+    const unsubscribe$ = fromEvent(button, 'click');
+
+    const click$ = fromEvent(button, 'click').pipe(takeUntil(unsubscribe$));
 
     click$.subscribe(() => {
       alert('Button was clicked. Unsubscribing from event.');
-      this.unsubscribe$.next();
-      this.unsubscribe$.complete();
     });
   }
 
@@ -1315,12 +1317,82 @@ export class AppComponent {
       alert('Button was clicked. Stopping Traversal.');
     });
   }
-  // Exercise 20
+  // Exercise 30
   function30() {
     const buttonClicks$ = fromEvent(this.buttonRef.nativeElement, 'click');
 
     buttonClicks$.pipe(take(1)).subscribe(() => {
       alert('Button was clicked once. Stopping Traversal.');
     });
+  }
+
+  function31() {
+    // Simulating NASDAQ prices as an array of objects
+    const pricesNASDAQ = [
+      { name: 'MSFT', price: 100 },
+      { name: 'AAPL', price: 150 },
+    ];
+
+    // Triggered whenever stop button is clicked
+    const stopButton =
+      this.buttonRef.nativeElement.querySelector('#stopButton');
+
+    const stopButtonClicks = fromEvent(stopButton, 'click');
+    const microsoftPrices = from(pricesNASDAQ).pipe(
+      filter((priceRecord) => priceRecord.name === 'MSFT'),
+      takeUntil(stopButtonClicks)
+    );
+
+    microsoftPrices.subscribe((priceRecord) => {
+      this.printRecord(priceRecord);
+    });
+  }
+  printRecord(record: any) {
+    console.log(record);
+  }
+
+  getData(): void {
+    this.http.get('http://api-global.netflix.com/queue').subscribe(
+      (data) => {
+        alert('Data has arrived.');
+        // Handle the received data here
+      },
+      (error) => {
+        alert('There was an error.');
+        // Handle the error here
+      }
+    );
+  }
+
+  getMovieLists() {
+    return this.http.get('http://api-global.netflix.com/abTestInformation').pipe(
+      switchMap((abTestInfo: any) =>
+        forkJoin({
+          configInfo: this.http.get(
+            `http://api-global.netflix.com/${abTestInfo.urlPrefix}/config`
+          ),
+          movieList: this.http.get(
+            `http://api-global.netflix.com/${abTestInfo.urlPrefix}/movieLists`
+          ),
+        }).pipe(
+          switchMap((data: any) => {
+            const { configInfo, movieList } = data;
+            if (configInfo.showInstantQueue) {
+              return this.http.get(
+                `http://api-global.netflix.com/${abTestInfo.urlPrefix}/queue`
+              ).pipe(
+                map((queueMessage: any) => ({
+                  movieLists: movieList.list.concat(queueMessage.list),
+                  error: null,
+                })),
+                catchError((error) => of({ movieLists: movieList.list, error: 'Queue retrieval error' })),
+              );
+            }
+            return of({ movieLists: movieList.list, error: null });
+          }),
+          catchError((error) => of({ movieLists: [], error: 'Config or MovieList retrieval error' }))
+        )
+      )
+    );
   }
 }
