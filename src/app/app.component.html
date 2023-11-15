@@ -60,5 +60,16 @@
 <button (click)="function31()" id="stopButton">click</button>
 <p>Thirty Two Exercise</p>
 <button (click)="getData()">Get Data</button>
-<p>Thirty Three Exercise</p>
+<p>Thirty Five Exercise</p>
 <button (click)="getMovieLists()">Get Data</button>
+<p>Thirty Eight Exercise</p>
+<input #inputField type="text" placeholder="Type here" />
+<button (click)="handleSave()">Save</button>
+<p>Thirty Nine Exercise</p>
+<input type="text" appAutocomplete placeholder="Type something" />
+<ul>
+  <li *ngFor="let result of searchResults">{{ result }}</li>
+</ul>
+<p>Forty Exercise</p>
+<input type="text" [formControl]="inputControl" placeholder="Type something" />
+<p>{{ result }}</p>

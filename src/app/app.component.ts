@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, Renderer2, ViewChild } from '@angular/core';
 import {
   flatMap,
   map,
@@ -9,6 +9,8 @@ import {
   fromEvent,
   Subject,
   forkJoin,
+  Observable,
+  merge,
 } from 'rxjs';
 import {
   concatMap,
@@ -20,8 +22,14 @@ import {
   take,
   switchMap,
   catchError,
+  distinctUntilChanged,
+  scan,
+  debounceTime,
 } from 'rxjs/operators';
 import { HttpClient } from '@angular/common/http';
+import { DataService } from './data.service';
+import { WikiApiServiceService } from './wiki-api-service.service';
+import { FormControl } from '@angular/forms';
 
 interface PriceRecord {
   name: string;
@@ -36,8 +44,26 @@ interface PriceRecord {
 export class AppComponent {
   title = 'os-rxjs-practice';
   pricesNASDAQ: PriceRecord[] = [];
+  searchResults: string[] = [];
+
+  searchControl = new FormControl();
+  inputControl = new FormControl('');
+  result = '';
+  private destroy$ = new Subject<void>();
+  @ViewChild('inputField') inputField!: ElementRef;
   // private unsubscribe$ = new Subject<void>();
-  constructor(private buttonRef: ElementRef, private http: HttpClient) {}
+  constructor(
+    private buttonRef: ElementRef,
+    private http: HttpClient,
+    private dataService: DataService,
+    private wikiApiService: WikiApiServiceService,
+    private el: ElementRef,
+    private renderer: Renderer2
+  ) {
+    // this.results$ = this.wikiApiService.search(this.searchControl.valueChanges);
+    this.setupAutocomplete();
+    this.setupDistinctUntilChanged();
+  }
   // Exercise 1
 
   function1() {
@@ -1364,35 +1390,115 @@ export class AppComponent {
     );
   }
 
+  // Exercise 35
   getMovieLists() {
-    return this.http.get('http://api-global.netflix.com/abTestInformation').pipe(
-      switchMap((abTestInfo: any) =>
-        forkJoin({
-          configInfo: this.http.get(
-            `http://api-global.netflix.com/${abTestInfo.urlPrefix}/config`
-          ),
-          movieList: this.http.get(
-            `http://api-global.netflix.com/${abTestInfo.urlPrefix}/movieLists`
-          ),
-        }).pipe(
-          switchMap((data: any) => {
-            const { configInfo, movieList } = data;
-            if (configInfo.showInstantQueue) {
-              return this.http.get(
-                `http://api-global.netflix.com/${abTestInfo.urlPrefix}/queue`
-              ).pipe(
-                map((queueMessage: any) => ({
-                  movieLists: movieList.list.concat(queueMessage.list),
-                  error: null,
-                })),
-                catchError((error) => of({ movieLists: movieList.list, error: 'Queue retrieval error' })),
-              );
-            }
-            return of({ movieLists: movieList.list, error: null });
-          }),
-          catchError((error) => of({ movieLists: [], error: 'Config or MovieList retrieval error' }))
+    return this.http
+      .get('http://api-global.netflix.com/abTestInformation')
+      .pipe(
+        switchMap((abTestInfo: any) =>
+          forkJoin({
+            configInfo: this.http.get(
+              `http://api-global.netflix.com/${abTestInfo.urlPrefix}/config`
+            ),
+            movieList: this.http.get(
+              `http://api-global.netflix.com/${abTestInfo.urlPrefix}/movieLists`
+            ),
+          }).pipe(
+            switchMap((data: any) => {
+              const { configInfo, movieList } = data;
+              if (configInfo.showInstantQueue) {
+                return this.http
+                  .get(
+                    `http://api-global.netflix.com/${abTestInfo.urlPrefix}/queue`
+                  )
+                  .pipe(
+                    map((queueMessage: any) => ({
+                      movieLists: movieList.list.concat(queueMessage.list),
+                      error: null,
+                    })),
+                    catchError((error) =>
+                      of({
+                        movieLists: movieList.list,
+                        error: 'Queue retrieval error',
+                      })
+                    )
+                  );
+              }
+              return of({ movieLists: movieList.list, error: null });
+            }),
+            catchError((error) =>
+              of({
+                movieLists: [],
+                error: 'Config or MovieList retrieval error',
+              })
+            )
+          )
         )
+      );
+  }
+
+  // Exercise 38
+
+  handleSave() {
+    const inputText = this.inputField.nativeElement.value;
+
+    if (inputText.trim() === '') {
+      // You may want to handle empty input differently
+      console.log('Input is empty. Not saving.');
+      return;
+    }
+
+    this.dataService
+      .saveData(inputText)
+      .subscribe((result) => console.log('Data saved successfully:', result));
+  }
+
+  setupDistinctUntilChanged() {
+    const inputElement = document.querySelector('input');
+
+    if (inputElement) {
+      fromEvent(inputElement, 'input')
+        .pipe(
+          map((event: any) => event.target.value),
+          filter((value) => this.isAlpha(value)),
+          distinctUntilChanged(),
+          scan((stringSoFar, character) => stringSoFar + character, '')
+        )
+        .subscribe((result) => {
+          this.result = result;
+        });
+    }
+  }
+
+  isAlpha(character: string): boolean {
+    return /^[a-zA-Z]+$/.test(character);
+  }
+
+  private setupAutocomplete() {
+    const keydown$ = fromEvent<KeyboardEvent>(this.el.nativeElement, 'keydown');
+
+    merge(
+      keydown$.pipe(debounceTime(300)),
+      fromEvent(this.el.nativeElement, 'input')
+    )
+      .pipe(
+        distinctUntilChanged(),
+        concatMap(() => {
+          const query = this.el.nativeElement.value;
+          return this.wikiApiService
+            .getSearchResults(query)
+            .pipe(takeUntil(this.destroy$));
+        })
       )
-    );
+      .subscribe((results) => this.onResultsChanged(results));
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  onResultsChanged(results: string[]) {
+    this.searchResults = results;
   }
 }
