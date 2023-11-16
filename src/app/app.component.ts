@@ -49,6 +49,7 @@ export class AppComponent {
   searchControl = new FormControl();
   inputControl = new FormControl('');
   result = '';
+  results$: Observable<string[]>;
   private destroy$ = new Subject<void>();
   @ViewChild('inputField') inputField!: ElementRef;
   // private unsubscribe$ = new Subject<void>();
@@ -60,8 +61,8 @@ export class AppComponent {
     private el: ElementRef,
     private renderer: Renderer2
   ) {
-    // this.results$ = this.wikiApiService.search(this.searchControl.valueChanges);
-    this.setupAutocomplete();
+    this.results$ = this.wikiApiService.search(this.searchControl.valueChanges);
+    // this.setupAutocomplete();
     this.setupDistinctUntilChanged();
   }
   // Exercise 1
@@ -1474,29 +1475,29 @@ export class AppComponent {
     return /^[a-zA-Z]+$/.test(character);
   }
 
-  private setupAutocomplete() {
-    const keydown$ = fromEvent<KeyboardEvent>(this.el.nativeElement, 'keydown');
+  // private setupAutocomplete() {
+  //   const keydown$ = fromEvent<KeyboardEvent>(this.el.nativeElement, 'keydown');
 
-    merge(
-      keydown$.pipe(debounceTime(300)),
-      fromEvent(this.el.nativeElement, 'input')
-    )
-      .pipe(
-        distinctUntilChanged(),
-        concatMap(() => {
-          const query = this.el.nativeElement.value;
-          return this.wikiApiService
-            .getSearchResults(query)
-            .pipe(takeUntil(this.destroy$));
-        })
-      )
-      .subscribe((results) => this.onResultsChanged(results));
-  }
+  //   merge(
+  //     keydown$.pipe(debounceTime(300)),
+  //     fromEvent(this.el.nativeElement, 'input')
+  //   )
+  //     .pipe(
+  //       distinctUntilChanged(),
+  //       concatMap(() => {
+  //         const query = this.el.nativeElement.value;
+  //         return this.wikiApiService
+  //           .getSearchResults(query)
+  //           .pipe(takeUntil(this.destroy$));
+  //       })
+  //     )
+  //     .subscribe((results) => this.onResultsChanged(results));
+  // }
 
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
+  // ngOnDestroy() {
+  //   this.destroy$.next();
+  //   this.destroy$.complete();
+  // }
 
   onResultsChanged(results: string[]) {
     this.searchResults = results;

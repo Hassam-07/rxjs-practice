@@ -66,10 +66,11 @@
 <input #inputField type="text" placeholder="Type here" />
 <button (click)="handleSave()">Save</button>
 <p>Thirty Nine Exercise</p>
-<input type="text" appAutocomplete placeholder="Type something" />
+<input type="text" [formControl]="searchControl" placeholder="Search" />
 <ul>
-  <li *ngFor="let result of searchResults">{{ result }}</li>
+  <li *ngFor="let result of results$ | async">{{ result }}</li>
 </ul>
+
 <p>Forty Exercise</p>
 <input type="text" [formControl]="inputControl" placeholder="Type something" />
 <p>{{ result }}</p>
