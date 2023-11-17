@@ -1,4 +1,10 @@
-import { Component, ElementRef, Renderer2, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  Renderer2,
+  ViewChild,
+} from '@angular/core';
 import {
   flatMap,
   map,
@@ -41,7 +47,7 @@ interface PriceRecord {
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
-export class AppComponent {
+export class AppComponent implements AfterViewInit {
   title = 'os-rxjs-practice';
   pricesNASDAQ: PriceRecord[] = [];
   searchResults: string[] = [];
@@ -52,6 +58,8 @@ export class AppComponent {
   results$: Observable<string[]>;
   private destroy$ = new Subject<void>();
   @ViewChild('inputField') inputField!: ElementRef;
+  @ViewChild('spriteContainer') spriteContainer!: ElementRef;
+  @ViewChild('sprite') sprite!: ElementRef;
   // private unsubscribe$ = new Subject<void>();
   constructor(
     private buttonRef: ElementRef,
@@ -64,6 +72,9 @@ export class AppComponent {
     this.results$ = this.wikiApiService.search(this.searchControl.valueChanges);
     // this.setupAutocomplete();
     this.setupDistinctUntilChanged();
+  }
+  ngAfterViewInit() {
+    this.dragMouse();
   }
   // Exercise 1
 
@@ -1501,5 +1512,60 @@ export class AppComponent {
 
   onResultsChanged(results: string[]) {
     this.searchResults = results;
+  }
+
+  dragMouse() {
+    const spriteMouseDowns = fromEvent<MouseEvent>(
+      this.sprite.nativeElement,
+      'mousedown'
+    );
+    const spriteContainerMouseMoves = fromEvent<MouseEvent>(
+      this.spriteContainer.nativeElement,
+      'mousemove'
+    );
+    const spriteContainerMouseUps = fromEvent<MouseEvent>(
+      this.spriteContainer.nativeElement,
+      'mouseup'
+    );
+
+    const spriteMouseDrags = spriteMouseDowns.pipe(
+      concatMap((start: MouseEvent) => {
+        return spriteContainerMouseMoves.pipe(
+          takeUntil(spriteContainerMouseUps),
+          map((move: MouseEvent) => {
+            move.preventDefault();
+            // Calculating the new position of the button relative to the container
+            const left =
+              move.pageX -
+              start.offsetX -
+              this.spriteContainer.nativeElement.offsetLeft;
+            const top =
+              move.pageY -
+              start.offsetY -
+              this.spriteContainer.nativeElement.offsetTop;
+            // Ensure the button stays within the container
+            return {
+              left:
+                Math.min(
+                  Math.max(left, 0),
+                  this.spriteContainer.nativeElement.clientWidth -
+                    this.sprite.nativeElement.clientWidth
+                ) + 'px',
+              top:
+                Math.min(
+                  Math.max(top, 0),
+                  this.spriteContainer.nativeElement.clientHeight -
+                    this.sprite.nativeElement.clientHeight
+                ) + 'px',
+            };
+          })
+        );
+      })
+    );
+    // Updates the button's style to reflect the new position
+    spriteMouseDrags.subscribe((position: { left: string; top: string }) => {
+      this.sprite.nativeElement.style.left = position.left;
+      this.sprite.nativeElement.style.top = position.top;
+    });
   }
 }
